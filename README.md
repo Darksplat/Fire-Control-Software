@@ -57,15 +57,22 @@ Type the usb location number into the red number next to com port below ie #com 
 Host = localhost Port = 8080 
 
 (MacOS)
-[Arduino] COM Port = /dev/tty.usbmodom……. Baud rate = 9600 
+[Arduino]
+COM Port = /dev/tty.usbmodom…….
+Baud rate = 9600 
 
 (Windows)
-[Arduino] COM Port = 123 (“COM7”) Baud rate = 9600
+[Arduino]
+COM Port = COM7
+Baud rate = 9600
 
 (RPI/Linux/Unix)
-[Arduino] COM Port = /dev/ttyACMO……. Baud rate = 9600
+[Arduino]
+COM Port = /dev/ttyACMO…….
+Baud rate = 9600
 
-[Controller] Command frequency (Hz): 2
+[Controller]
+Command frequency (Hz): 2
 
 Uncomment the “Arduino” section(If it is(#)), and set “COM Port” to whatever the Arduino is connected to. I’d suggest starting with “COM3”.
 The baud rate should be correct (9600 symbols/second). But can be increased if you wish
