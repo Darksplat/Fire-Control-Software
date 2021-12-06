@@ -54,12 +54,12 @@ To find usb devices on Mac OS open terminal and type this command
 ls /dev/tty.usb*
 Type the usb location number into the red number next to com port below ie #com port:
 [Web Server]
-Host = localhost Port = 8080 
+Host = localhost Port = 8080
 
 (MacOS)
 [Arduino]
 COM Port = /dev/tty.usbmodom…….
-Baud rate = 9600 
+Baud rate = 9600
 
 (Windows)
 [Arduino]
