@@ -7,6 +7,9 @@
 /* Help & Reference: http://projectsentrygun.rudolphlabs.com/make-your-own
   Forum: http://projectsentrygun.rudolphlabs.com/forum
 
+  This is a heavily modified version of the file programming credit goes to Jason 'TEO' Etheridge
+  @jasonetheridge, I just imspired and tested - Jeremy Younger @darksplat
+
   ATTACHMENT INSTRUCTIONS: (for using an Arduino board)
   attach x-axis (pan) standard servo to digital I/O pin 8
   attach y-axis (tilt) standard servo to digital I/O pin 9
