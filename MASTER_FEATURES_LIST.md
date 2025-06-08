@@ -46,7 +46,31 @@ Power Supply
 	•	Wiring: 18–22 AWG with JST or screw connectors
 	•	PCB or Perfboard: For final build and prototyping
 
+🧱 BLOCK DIAGRAM (text-based)
 
+                +-------------------------+
+                 |  Raspberry Pi 5 (Main)  |
+                 |   - OpenCV Detection    |
+                 |   - GUI + Touchscreen   |
+                 +-----------+-------------+
+                             |
+                             | USB / UART
+                             v
+                   +---------+---------+
+                   |     Pico W (MCU)  |
+                   |  - Servo Control  |
+                   |  - Laser Trigger  |
+                   |  - Safety Logic   |
+                   +----+--------+-----+
+                        |        |
+                        |        |
+                   [Servo X]  [Servo Y]  ← DS3218 or MG996R
+                        |
+                   +----+-----+
+                   |  MOSFET  | ← Controls TTL Laser / Ballistic Firing
+                   +----+-----+
+                        |
+                 [TTL-Compatible Laser]
 
 🧰 MICROCONTROLLER FIRMWARE (PICO W)
 Responsibilities
