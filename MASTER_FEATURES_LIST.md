@@ -2,7 +2,6 @@
 Modular, GUI-based, touchscreen-friendly sentry gun platform powered by Raspberry Pi + Pico W
 
 
-
 🛠️ HARDWARE COMPONENTS
 Core Processors
 	•	Raspberry Pi 5 (x3)
