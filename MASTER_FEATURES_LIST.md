@@ -1,3 +1,5 @@
+*************** Please view in RAW Mode for best Formatting ****************
+
 🔫 Project Sentry Gun – Master Systems Plan
 Modular, GUI-based, touchscreen-friendly sentry gun platform powered by Raspberry Pi + Pico W
 
