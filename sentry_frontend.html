@@ -5,53 +5,277 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Project Sentry Gun Control Panel</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #121212; color: #eee; margin: 0; padding: 0; }
-    header { background: #1f1f1f; padding: 1em; text-align: center; font-size: 1.5em; }
-    main { display: flex; flex-direction: column; align-items: center; padding: 1em; }
-    .video-wrapper { position: relative; }
-    video, canvas { border: 2px solid #444; max-width: 100%; }
-    .controls { margin-top: 1em; display: flex; gap: 1em; flex-wrap: wrap; justify-content: center; }
-    button { padding: 10px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; background: #333; color: #fff; }
-    button:hover { background: #555; }
+    :root {
+      --bg: #0f0f14;
+      --panel: #1b1b24;
+      --accent: #ff4444;
+      --accent-2: #44c0ff;
+      --text: #f5f5f7;
+      --muted: #b0b0c3;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+    header { background: #14141c; padding: 1rem; text-align: center; font-size: 1.6rem; letter-spacing: 0.05em; }
+    main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 1.5rem; padding: 1.5rem; }
+    .panel { background: var(--panel); border-radius: 12px; padding: 1rem; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .video-wrapper { position: relative; width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #2c2c3b; }
+    .video-wrapper img { width: 100%; display: block; }
+    .video-wrapper canvas { position: absolute; inset: 0; }
+    .controls { display: grid; gap: 0.75rem; }
+    .controls button, .controls select {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      border: none;
+      background: #2a2a38;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .controls button:hover { background: #3b3b50; }
+    .controls button.primary { background: var(--accent-2); color: #001018; font-weight: 600; }
+    .controls button.danger { background: var(--accent); font-weight: 700; }
+    .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.95rem; }
+    .status-item { background: #222231; padding: 0.5rem 0.75rem; border-radius: 6px; }
+    .status-item span { color: var(--muted); font-size: 0.8rem; display: block; }
+    .log-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
+    .log-list li { padding: 0.5rem 0; border-bottom: 1px solid #2e2e3f; font-size: 0.9rem; color: var(--muted); }
+    .zone-list { list-style: none; padding: 0; margin: 0; }
+    .zone-list li { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .zone-pill { background: #2f2f43; padding: 0.35rem 0.6rem; border-radius: 999px; font-size: 0.85rem; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
   <header>Project Sentry Gun Control Panel</header>
   <main>
-    <div class="video-wrapper">
-      <img id="video" src="http://localhost:8000/video_feed" alt="Video Stream" />
-    </div>
+    <section class="panel">
+      <div class="video-wrapper">
+        <img id="video" src="http://localhost:8000/video_feed" alt="Video Stream" />
+        <canvas id="overlay"></canvas>
+      </div>
+      <p style="color: var(--muted); margin-top: 0.75rem;">
+        Draw Safe-To-Fire Zones by clicking and dragging on the video feed. Zones are enforced server-side.
+      </p>
+    </section>
 
-    <div class="controls">
-      <button onclick="toggleArm()">Toggle Arm</button>
-      <button onclick="setMode('manual')">Manual Mode</button>
-      <button onclick="setMode('motion')">Motion Mode</button>
-      <button onclick="setMode('color')">Color Mode</button>
-      <button onclick="sendFire()">FIRE</button>
+    <section class="panel controls">
+      <button class="primary" onclick="toggleArm()">Arm / Disarm</button>
+      <select id="modeSelect" onchange="setModeFromSelect()">
+        <option value="manual">Manual Mode</option>
+        <option value="motion">Motion Mode</option>
+        <option value="color">Color Mode</option>
+      </select>
+      <button onclick="requestFire()">Fire (2-Step Confirm)</button>
+      <button onclick="confirmFire()" id="confirmFireBtn" class="danger" disabled>Confirm Fire</button>
+      <button onclick="saveZones()">Save Zones</button>
+      <button onclick="loadZones()">Load Zones</button>
       <button onclick="clearZones()">Clear Zones</button>
-    </div>
+      <button onclick="refreshLog()">Refresh Log</button>
+
+      <div>
+        <h3>Status</h3>
+        <div class="status-grid" id="statusGrid"></div>
+      </div>
+
+      <div>
+        <h3>Zones</h3>
+        <ul class="zone-list" id="zoneList"></ul>
+      </div>
+
+      <div>
+        <h3>Activity Log</h3>
+        <ul class="log-list" id="logList"></ul>
+      </div>
+    </section>
   </main>
 
   <script>
-    async function toggleArm() {
-      await fetch('http://localhost:8000/arm_toggle', { method: 'POST' });
+    const apiBase = "http://localhost:8000";
+    const overlay = document.getElementById("overlay");
+    const video = document.getElementById("video");
+    const zoneList = document.getElementById("zoneList");
+    const statusGrid = document.getElementById("statusGrid");
+    const logList = document.getElementById("logList");
+    const confirmFireBtn = document.getElementById("confirmFireBtn");
+    let drawing = false;
+    let startPoint = null;
+    let zones = [];
+
+    function resizeCanvas() {
+      overlay.width = video.clientWidth;
+      overlay.height = video.clientHeight;
+      renderZones();
     }
 
-    async function setMode(mode) {
-      await fetch('http://localhost:8000/set_mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    window.addEventListener("resize", resizeCanvas);
+    video.addEventListener("load", resizeCanvas);
+
+    overlay.addEventListener("mousedown", (event) => {
+      drawing = true;
+      startPoint = getCanvasPoint(event);
+    });
+
+    overlay.addEventListener("mousemove", (event) => {
+      if (!drawing) return;
+      const current = getCanvasPoint(event);
+      renderZones({ start: startPoint, end: current });
+    });
+
+    overlay.addEventListener("mouseup", async (event) => {
+      if (!drawing) return;
+      drawing = false;
+      const endPoint = getCanvasPoint(event);
+      const rect = normalizeRect(startPoint, endPoint);
+      await addZone(rect);
+      startPoint = null;
+    });
+
+    overlay.addEventListener("mouseleave", () => {
+      if (drawing) {
+        drawing = false;
+        startPoint = null;
+        renderZones();
+      }
+    });
+
+    function getCanvasPoint(event) {
+      const rect = overlay.getBoundingClientRect();
+      return {
+        x: Math.round((event.clientX - rect.left) * (overlay.width / rect.width)),
+        y: Math.round((event.clientY - rect.top) * (overlay.height / rect.height)),
+      };
+    }
+
+    function normalizeRect(start, end) {
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const w = Math.abs(start.x - end.x);
+      const h = Math.abs(start.y - end.y);
+      return { x, y, w, h };
+    }
+
+    function renderZones(activeRect) {
+      const ctx = overlay.getContext("2d");
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      ctx.strokeStyle = "rgba(255, 68, 68, 0.9)";
+      ctx.lineWidth = 2;
+      zones.forEach((zone) => {
+        ctx.strokeRect(zone.x, zone.y, zone.w, zone.h);
+      });
+      if (activeRect) {
+        ctx.strokeStyle = "rgba(68, 192, 255, 0.9)";
+        const { start, end } = activeRect;
+        ctx.strokeRect(start.x, start.y, end.x - start.x, end.y - start.y);
+      }
+    }
+
+    async function toggleArm() {
+      await fetch(`${apiBase}/arm_toggle`, { method: "POST" });
+      await refreshStatus();
+    }
+
+    async function setModeFromSelect() {
+      const mode = document.getElementById("modeSelect").value;
+      await fetch(`${apiBase}/set_mode`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode })
       });
+      await refreshStatus();
     }
 
-    async function sendFire() {
-      await fetch('http://localhost:8000/fire', { method: 'POST' });
+    async function requestFire() {
+      confirmFireBtn.disabled = false;
+      confirmFireBtn.textContent = "Confirm Fire";
+    }
+
+    async function confirmFire() {
+      if (confirmFireBtn.disabled) return;
+      await fetch(`${apiBase}/fire`, { method: "POST" });
+      confirmFireBtn.disabled = true;
+      confirmFireBtn.textContent = "Confirm Fire";
+      await refreshLog();
+    }
+
+    async function addZone(zone) {
+      if (zone.w === 0 || zone.h === 0) return;
+      await fetch(`${apiBase}/zones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(zone),
+      });
+      await refreshZones();
     }
 
     async function clearZones() {
-      await fetch('http://localhost:8000/zones', { method: 'DELETE' });
+      await fetch(`${apiBase}/zones`, { method: "DELETE" });
+      await refreshZones();
     }
+
+    async function saveZones() {
+      await fetch(`${apiBase}/zones/save`, { method: "POST" });
+      await refreshLog();
+    }
+
+    async function loadZones() {
+      await fetch(`${apiBase}/zones/load`, { method: "POST" });
+      await refreshZones();
+    }
+
+    async function refreshZones() {
+      const response = await fetch(`${apiBase}/zones`);
+      zones = await response.json();
+      zoneList.innerHTML = "";
+      zones.forEach((zone, index) => {
+        const item = document.createElement("li");
+        const label = document.createElement("span");
+        label.className = "zone-pill";
+        label.textContent = `#${index} (${zone.x}, ${zone.y}) ${zone.w}x${zone.h}`;
+        const button = document.createElement("button");
+        button.textContent = "Remove";
+        button.onclick = async () => {
+          await fetch(`${apiBase}/zones/${index}`, { method: "DELETE" });
+          await refreshZones();
+        };
+        item.appendChild(label);
+        item.appendChild(button);
+        zoneList.appendChild(item);
+      });
+      renderZones();
+    }
+
+    async function refreshStatus() {
+      const response = await fetch(`${apiBase}/status`);
+      const status = await response.json();
+      statusGrid.innerHTML = "";
+      const items = [
+        { label: "Armed", value: status.armed ? "YES" : "NO" },
+        { label: "Mode", value: status.mode },
+        { label: "Zones", value: status.zone_count },
+        { label: "Last Violation", value: status.last_violation ? "YES" : "NO" },
+      ];
+      items.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "status-item";
+        div.innerHTML = `<span>${item.label}</span>${item.value}`;
+        statusGrid.appendChild(div);
+      });
+    }
+
+    async function refreshLog() {
+      const response = await fetch(`${apiBase}/log`);
+      const data = await response.json();
+      logList.innerHTML = "";
+      data.events.slice().reverse().forEach((event) => {
+        const item = document.createElement("li");
+        item.textContent = `${event.timestamp} - ${event.type}`;
+        logList.appendChild(item);
+      });
+    }
+
+    Promise.all([refreshZones(), refreshStatus(), refreshLog()]);
   </script>
 </body>
 </html>
