@@ -1,79 +1,98 @@
-# main.py
-import cv2
 import json
-from stfz_handler import STFZHandler
+from pathlib import Path
+from typing import Iterable, List, Tuple
 
-# Initialize STFZ handler
-stfz = STFZHandler(config_file='config.json')
-stfz.load_zones()
 
-# Dummy target box for testing (x, y, w, h)
-target_box = (100, 100, 50, 50)
+ZoneTuple = Tuple[int, int, int, int]
 
-# Camera setup
-cap = cv2.VideoCapture(0)
 
-# Mouse callback state
-drawing = False
-ix, iy = -1, -1
-new_zone = None
+class STFZHandler:
+    def __init__(self, config_file: str = "config.json") -> None:
+        self.config_file = Path(config_file)
+        self.zones: List[ZoneTuple] = []
 
-def mouse_draw(event, x, y, flags, param):
-    global drawing, ix, iy, new_zone
+    def load_zones(self) -> List[ZoneTuple]:
+        if not self.config_file.exists():
+            self.zones = []
+            return self.zones
 
-    if event == cv2.EVENT_LBUTTONDOWN:
-        drawing = True
-        ix, iy = x, y
+        with self.config_file.open("r", encoding="utf-8") as handle:
+            raw = json.load(handle)
 
-    elif event == cv2.EVENT_MOUSEMOVE:
-        if drawing:
-            new_zone = (ix, iy, x, y)
+        loaded: List[ZoneTuple] = []
+        for item in raw if isinstance(raw, list) else []:
+            if isinstance(item, dict):
+                loaded.append((
+                    int(item["x"]),
+                    int(item["y"]),
+                    int(item["w"]),
+                    int(item["h"]),
+                ))
+            else:
+                x, y, w, h = item
+                loaded.append((int(x), int(y), int(w), int(h)))
 
-    elif event == cv2.EVENT_LBUTTONUP:
-        drawing = False
-        x0, y0 = min(ix, x), min(iy, y)
-        x1, y1 = max(ix, x), max(iy, y)
-        width = x1 - x0
-        height = y1 - y0
-        stfz.add_zone((x0, y0, width, height))
-        new_zone = None
+        self.zones = loaded
+        return self.zones
 
-cv2.namedWindow("Video")
-cv2.setMouseCallback("Video", mouse_draw)
+    def save_zones(self) -> None:
+        data = [self._zone_to_dict(zone) for zone in self.zones]
+        with self.config_file.open("w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2)
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    def add_zone(self, zone: ZoneTuple) -> None:
+        self.zones.append(self._normalize_zone(zone))
 
-    # Draw existing STFZ zones
-    frame = stfz.draw_zones(frame)
+    def remove_zone(self, zone_id: int) -> ZoneTuple:
+        if zone_id < 0 or zone_id >= len(self.zones):
+            raise IndexError("Zone ID out of range")
+        return self.zones.pop(zone_id)
 
-    # Draw in-progress zone
-    if new_zone:
-        x0, y0, x1, y1 = new_zone
-        cv2.rectangle(frame, (x0, y0), (x1, y1), (0, 0, 255), 1)
+    def clear_zones(self) -> None:
+        self.zones = []
 
-    # Draw dummy target box
-    tx, ty, tw, th = target_box
-    cv2.rectangle(frame, (tx, ty), (tx+tw, ty+th), (0, 255, 0), 2)
+    def get_all_zones(self) -> List[dict]:
+        return [self._zone_to_dict(zone) for zone in self.zones]
 
-    # Check if target in STFZ
-    in_zone = stfz.is_target_in_zone(target_box)
-    if in_zone:
-        cv2.putText(frame, "IN STFZ - DO NOT FIRE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
-    else:
-        cv2.putText(frame, "CLEAR - CAN FIRE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+    def is_target_in_zone(self, target_box: ZoneTuple) -> bool:
+        tx, ty, tw, th = target_box
+        target_rect = (tx, ty, tx + tw, ty + th)
 
-    cv2.imshow("Video", frame)
-    key = cv2.waitKey(1) & 0xFF
+        for zone in self.zones:
+            zx, zy, zw, zh = zone
+            zone_rect = (zx, zy, zx + zw, zy + zh)
+            if self._rects_intersect(target_rect, zone_rect):
+                return True
+        return False
 
-    if key == ord('q'):
-        break
-    elif key == ord('c'):
-        stfz.clear_zones()
-    elif key == ord('s'):
-        stfz.save_zones()
+    def draw_zones(self, frame):
+        try:
+            import cv2
+        except ImportError as exc:  # pragma: no cover - runtime dependency
+            raise RuntimeError("OpenCV is required to draw zones.") from exc
 
-cap.release()
-cv2.destroyAllWindows()
+        for zone in self.zones:
+            x, y, w, h = zone
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        return frame
+
+    def _normalize_zone(self, zone: Iterable[int]) -> ZoneTuple:
+        x, y, w, h = zone
+        if w < 0:
+            x += w
+            w = abs(w)
+        if h < 0:
+            y += h
+            h = abs(h)
+        return int(x), int(y), int(w), int(h)
+
+    @staticmethod
+    def _rects_intersect(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
+        return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
+
+    @staticmethod
+    def _zone_to_dict(zone: ZoneTuple) -> dict:
+        x, y, w, h = zone
+        return {"x": x, "y": y, "w": w, "h": h}
