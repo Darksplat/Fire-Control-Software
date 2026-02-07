@@ -1,7 +1,8 @@
 # backend.py
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import cv2
 import threading
 import time
@@ -18,6 +19,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class Zone(BaseModel):
+    x: int
+    y: int
+    w: int
+    h: int
+
 
 # State variables
 stfz = STFZHandler(config_file='config.json')
@@ -70,9 +79,8 @@ def get_zones():
     return JSONResponse(content=stfz.get_all_zones())
 
 @app.post("/zones")
-def add_zone(zone: dict):
-    box = (zone["x"], zone["y"], zone["w"], zone["h"])
-    stfz.add_zone(box)
+def add_zone(zone: Zone):
+    stfz.add_zone((zone.x, zone.y, zone.w, zone.h))
     return {"message": "Zone added."}
 
 @app.delete("/zones/{zone_id}")
@@ -80,8 +88,8 @@ def delete_zone(zone_id: int):
     try:
         stfz.remove_zone(zone_id)
         return {"message": f"Zone {zone_id} removed."}
-    except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+    except IndexError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.post("/arm_toggle")
 def toggle_arm():
@@ -90,7 +98,7 @@ def toggle_arm():
     return {"armed": armed}
 
 @app.post("/set_mode")
-def set_mode(request: Request):
+async def set_mode(request: Request):
     global mode
     data = await request.json()
     mode = data.get("mode", "manual")
