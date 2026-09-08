@@ -1,0 +1,12 @@
+TO install board support for ESP8266 (wifi Shield):
+
+In File>Preferences>Additional Board Manager URLS add:
+
+http://arduino.esp8266.com/stable/package_esp8266com_index.json
+
+separating from existing entries with a comma.
+
+Go to Tools>Boards>Boards Manager and type 'esp' in the search box- install ESP8266 by ESP8266 Community.
+
+Choose ESP8266 from Boards.
+

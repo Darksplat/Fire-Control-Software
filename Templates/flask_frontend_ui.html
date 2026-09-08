@@ -1,0 +1,78 @@
+# app.py (Flask backend for Project Sentry Gun)
+from flask import Flask, render_template, Response, jsonify, request
+import cv2
+import threading
+
+app = Flask(__name__)
+
+# Globals
+video_capture = cv2.VideoCapture(0)
+video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+is_armed = False
+mode = "motion"
+stfz_zones = []
+frame_lock = threading.Lock()
+
+
+def generate_frames():
+    global is_armed, mode, stfz_zones
+    while True:
+        success, frame = video_capture.read()
+        if not success:
+            continue
+
+        with frame_lock:
+            for (x, y, w, h) in stfz_zones:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = buffer.tobytes()
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/toggle_arm', methods=['POST'])
+def toggle_arm():
+    global is_armed
+    is_armed = not is_armed
+    return jsonify({'status': 'ok', 'armed': is_armed})
+
+
+@app.route('/set_mode', methods=['POST'])
+def set_mode():
+    global mode
+    data = request.get_json()
+    mode = data.get('mode', 'motion')
+    return jsonify({'status': 'ok', 'mode': mode})
+
+
+@app.route('/add_zone', methods=['POST'])
+def add_zone():
+    global stfz_zones
+    data = request.get_json()
+    x, y, w, h = data['x'], data['y'], data['w'], data['h']
+    stfz_zones.append((x, y, w, h))
+    return jsonify({'status': 'ok', 'zones': stfz_zones})
+
+
+@app.route('/clear_zones', methods=['POST'])
+def clear_zones():
+    global stfz_zones
+    stfz_zones.clear()
+    return jsonify({'status': 'ok'})
+
+
+if __name__ == '__main__':
+    app.run(debug=True, threaded=True)
