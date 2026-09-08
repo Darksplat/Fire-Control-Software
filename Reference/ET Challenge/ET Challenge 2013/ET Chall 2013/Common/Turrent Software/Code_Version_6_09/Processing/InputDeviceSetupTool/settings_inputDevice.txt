@@ -1,0 +1,49 @@
+========================================
+---------------- Device ----------------
+MotioninJoy Virtual Game Controller
+
+========================================
+--------------- Buttons ----------------
+No Action
+No Action
+Center Gun
+Random Sound
+Precise Aim
+Fire
+Precise Aim
+Fire
+Auto Aim Off
+Auto Aim On
+No Action
+No Action
+Input Dev On/Off
+No Action
+No Action
+No Action
+No Action
+No Action
+No Action
+No Action
+No Action
+
+
+
+
+
+
+
+
+
+
+========================================
+--------------- Sliders ----------------
+No Action
+No Action
+Pan
+No Action
+No Action
+Tilt
+Tilt
+Pan
+
+
