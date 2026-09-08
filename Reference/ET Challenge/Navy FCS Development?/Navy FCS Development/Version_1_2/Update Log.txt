@@ -1,0 +1,10 @@
+**Version 1.2**
+Added "Display Detected Pixels" Button,
+Changed Servo Calibration Sliders Type,
+General Tidy Up Of Code,
+Added Servo Max Rotation Setting (In Code),
+Constrained Servo Min/Max So That They Will Not Exceed Servo Limit (Normally 0-180),
+Servo Calibration Sliders Will Now Display Proper Setting Values,
+Made Y and X Axis Sliders Longer (Temporary, New GUI In Development),
+Deleted Old Blob Code (In Development),
+Deleted Old Servo Serial Communication Code (In Development).
