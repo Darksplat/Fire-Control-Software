@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Sentry Gun Control Panel</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #121212; color: #eee; margin: 0; padding: 0; }
+    header { background: #1f1f1f; padding: 1em; text-align: center; font-size: 1.5em; }
+    main { display: flex; flex-direction: column; align-items: center; padding: 1em; }
+    .video-wrapper { position: relative; }
+    video, canvas { border: 2px solid #444; max-width: 100%; }
+    .controls { margin-top: 1em; display: flex; gap: 1em; flex-wrap: wrap; justify-content: center; }
+    button { padding: 10px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; background: #333; color: #fff; }
+    button:hover { background: #555; }
+  </style>
+</head>
+<body>
+  <header>Project Sentry Gun Control Panel</header>
+  <main>
+    <div class="video-wrapper">
+      <img id="video" src="http://localhost:8000/video_feed" alt="Video Stream" />
+    </div>
+
+    <div class="controls">
+      <button onclick="toggleArm()">Toggle Arm</button>
+      <button onclick="setMode('manual')">Manual Mode</button>
+      <button onclick="setMode('motion')">Motion Mode</button>
+      <button onclick="setMode('color')">Color Mode</button>
+      <button onclick="sendFire()">FIRE</button>
+      <button onclick="clearZones()">Clear Zones</button>
+    </div>
+  </main>
+
+  <script>
+    async function toggleArm() {
+      await fetch('http://localhost:8000/arm_toggle', { method: 'POST' });
+    }
+
+    async function setMode(mode) {
+      await fetch('http://localhost:8000/set_mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+    }
+
+    async function sendFire() {
+      await fetch('http://localhost:8000/fire', { method: 'POST' });
+    }
+
+    async function clearZones() {
+      await fetch('http://localhost:8000/zones', { method: 'DELETE' });
+    }
+  </script>
+</body>
+</html>

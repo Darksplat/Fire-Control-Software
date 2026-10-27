@@ -1,0 +1,6 @@
+Planned Updates 1.3:
+Adding log for smooth colour and motion tracking,
+Improve comments,
+Improve GUI,
+Add "Performance Mode"(disables cam output to screen),
+Integrate Blob or another algorithm for multiple object tracking.

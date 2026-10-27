@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Sentry Gun Control</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+    }
+    #video {
+      border: 2px solid black;
+      margin: 20px auto;
+      display: block;
+    }
+    .controls {
+      margin-top: 20px;
+    }
+    .controls button, .controls select {
+      margin: 0 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    .zone-box {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Project Sentry Gun Control Panel</h1>
+
+  <img id="video" src="/video_feed" width="640" height="480">
+
+  <div class="controls">
+    <button onclick="toggleArm()">Toggle Arm</button>
+    <select id="modeSelect" onchange="setMode()">
+      <option value="manual">Manual</option>
+      <option value="motion">Motion</option>
+      <option value="color">Color</option>
+    </select>
+    <button onclick="clearZones()">Clear Zones</button>
+  </div>
+
+  <div class="zone-box">
+    <button onclick="addTestZone()">Add Test Zone</button>
+  </div>
+
+  <script>
+    function toggleArm() {
+      fetch('/toggle_arm', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => alert(`System is now ${data.armed ? 'ARMED' : 'DISARMED'}`));
+    }
+
+    function setMode() {
+      const mode = document.getElementById('modeSelect').value;
+      fetch('/set_mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      }).then(() => alert(`Mode set to ${mode}`));
+    }
+
+    function clearZones() {
+      fetch('/zones', { method: 'DELETE' })
+        .then(() => alert('All zones cleared'));
+    }
+
+    function addTestZone() {
+      const testZone = [100, 100, 150, 150];
+      fetch('/zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zone: testZone })
+      }).then(() => alert('Test zone added'));
+    }
+  </script>
+</body>
+</html>
