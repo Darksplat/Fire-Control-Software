@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Sentry Gun</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #111;
+            color: #eee;
+            text-align: center;
+        }
+        video, canvas {
+            border: 2px solid #333;
+            margin: 10px 0;
+        }
+        button, select {
+            font-size: 16px;
+            padding: 10px;
+            margin: 5px;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Project Sentry Gun Control</h1>
+
+    <div>
+        <img id="videoStream" src="/video_feed" width="720" height="480">
+        <canvas id="overlayCanvas" width="720" height="480"></canvas>
+    </div>
+
+    <div class="controls">
+        <button onclick="toggleArm()">Arm / Disarm</button>
+
+        <select onchange="setMode(this.value)">
+            <option value="motion">Motion Mode</option>
+            <option value="color">Color Mode</option>
+        </select>
+
+        <button onclick="clearZones()">Clear Zones</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('overlayCanvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let startX, startY;
+
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!drawing) return;
+            drawing = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+            const x = Math.min(startX, endX);
+            const y = Math.min(startY, endY);
+            const w = Math.abs(endX - startX);
+            const h = Math.abs(endY - startY);
+
+            if (w > 10 && h > 10) {
+                drawRectangle(x, y, w, h);
+                addZone(x, y, w, h);
+            }
+        });
+
+        function drawRectangle(x, y, w, h) {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+        }
+
+        function addZone(x, y, w, h) {
+            fetch('/add_zone', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ x, y, w, h })
+            });
+        }
+
+        function clearZones() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            fetch('/clear_zones', { method: 'POST' });
+        }
+
+        function toggleArm() {
+            fetch('/toggle_arm', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    alert(`System is now ${data.armed ? 'ARMED' : 'DISARMED'}`);
+                });
+        }
+
+        function setMode(mode) {
+            fetch('/set_mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode })
+            });
+        }
+    </script>
+</body>
+</html>
