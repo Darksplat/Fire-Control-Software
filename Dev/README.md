@@ -18,104 +18,142 @@ The engine is `PSG 2021/psg.py`. This branch adds the safety and operations laye
 Old experiments (Flask prototypes, duplicate mains, templates) are in `archive/`. Tests: `python -m pytest tests`.
 
 ---
-
 # Fire-Control-Software
-Using a RPI or another computer and Arduino, this is a current, fire control software
 
-Installation
+A laser target-training turret. A camera watches a projector screen, finds targets, and an Arduino aims a pan/tilt
+servo turret and pulses a TTL laser on the target. Runs on a Raspberry Pi (or any computer) with an Arduino attached over USB.
+You control it from a web page.
 
-Hardware
+The engine is `PSG 2021/psg.py`, based on Project Sentry Gun. This version adds arm/disarm, a kill button,
+safe-to-fire zones, screen bounds, an event log and an Arduino fail-safe.
 
-Recommended setup for use of PSG 2021
-RPI 4 - 4GB (8GB Recommended)
-Flash Card
-RPI Camera V2
-Arduino UNO Rev3 or compatible board
-Your Sentry Gun Device
+## Safety first
+- The system starts **disarmed** every time. Nothing can fire (auto, manual, always-fire, aim-and-fire) until you press **Arm**.
+- **Kill** stops firing, switches off the auto modes and disarms.
+- Auto-fire only targets inside the calibrated screen area, and never inside a safe-to-fire zone.
+- With no calibration saved, auto-fire does nothing.
+- The Arduino turns the laser off if the computer stops talking to it for 3 seconds.
+- Use the laser only at the projector screen, with a backstop behind it, and never aim it at people or reflective surfaces.
 
-Software
+## Hardware
+- Raspberry Pi 4 (4 GB or more) or another computer, with a camera (Pi Camera V2 or a USB webcam)
+- Arduino Uno Rev3 or compatible, connected by USB
+- Pan and tilt servos on a turret, and a TTL laser
+- Projector and screen
 
-PSG 2021 files including Arduino sketch From Github and forcenet
-Raspberry Pi imager
-Raspberry OS - ‘Buster’ - This is because ‘Bullseye’ uses a different library for the PIcam and as such will break the install. See this webpage on how to install ‘Buster’
-https://www.raspberrypi.com/news/new-old-functionality-with-raspberry-pi-os-legacy/
+Arduino wiring (from `PSG 2021/Arduino Files/PSG_2020.ino`):
 
-On the machine to which the Arduino is connected, download Python 3.9.9 not Python 3.10 as it doesn’t have the dependancies that are required at the time of writing. (06/12/2021). From python.org, and install.
-This webpage shows how on multiple system types ie MacOS, Windows, Linux
-https://wsvincent.com/install-python/
+| Pin | Connects to |
+|---|---|
+| 8 | Pan servo signal |
+| 9 | Tilt servo signal |
+| 7 | Laser TTL input (the laser is on when this pin is LOW) |
+| 14 (A0) | USB activity LED (optional) |
 
-MacOS Instructions
-It should install pip, the package installer. In a cmd/terminal window, run:(copy and paste this code)
-python3 pip install --upgrade pip
-This could take a while depending on your internet connection 
-Sudo pip3 install Flask imutils opencv-contrib-python opencv-python pyserial
-That installs the packages upon which PSG depends.
-Download the files from Github, Forcenet
+Power the servos and laser from a suitable supply, and share its ground with the Arduino.
 
-Windows Instructions
-It should install pip, the package installer. In a cmd/terminal window, run:(copy and paste this code)
-python3 pip install --upgrade pip
-This could take a while depending on your internet connection 
-Sudo pip3 install Flask imutils opencv-contrib-python opencv-python pyserial
-That installs the packages upon which PSG depends.
-Download the files from Github, Forcenet
-Unzip into wherever you want it to run on the same machine.
+## Software install
+1. Upload `PSG 2021/Arduino Files/PSG_2020.ino` to the Arduino with the Arduino IDE. Re-upload it whenever the sketch changes.
+2. Install Python. The project was built on Python 3.9.x. Newer versions may work, but if a package fails to install, use 3.9.
+3. Install the packages:
+   ```
+   pip3 install --upgrade pip
+   pip3 install Flask imutils opencv-contrib-python opencv-python pyserial numpy
+   ```
+4. On Linux, `psg.py` also imports `picamera`, which exists on Raspberry Pi OS "Buster" (legacy). Bullseye and later use a different
+   camera library and will not work with the Pi Camera here.
+5. Copy this repository onto the machine the Arduino is connected to.
 
-Raspberry Pi/Linux/Unix Instructions
-It should install pip, the package installer. In a cmd/terminal window, run:(copy and paste this code)
-python3 pip install --upgrade pip
-This could take a while depending on your internet connection 
-Sudo pip3 install Flask imutils opencv-contrib-python opencv-python pyserial
-That installs the packages upon which PSG depends.
-Download the files from Github, Forcenet
-
-Configuration
-Under the unzip’d psg-2021 folder, you should find psg.ini:
-To find usb devices on Mac OS open terminal and type this command 
-ls /dev/tty.usb*
-Type the usb location number into the red number next to com port below ie #com port:
+## Configuration (`PSG 2021/psg.ini`)
+```
 [Web Server]
-Host = localhost Port = 8080
+Host = localhost        ; use 0.0.0.0 to reach it from other devices (see warning below)
+Port = 8080
 
-(MacOS)
 [Arduino]
-COM Port = /dev/tty.usbmodom…….
+COM Port = /dev/ttyACM0 ; Mac: /dev/tty.usbmodem... (ls /dev/tty.usb*)  Windows: COM7
 Baud rate = 9600
 
-(Windows)
-[Arduino]
-COM Port = COM7
-Baud rate = 9600
+[Video]
+Width = 400
 
-(RPI/Linux/Unix)
-[Arduino]
-COM Port = /dev/ttyACMO…….
-Baud rate = 9600
+[Scanning]
+Pause before resuming scanning = 5
+Pause between turret positions = 2
+Turret pan increment = 10
 
-[Controller]
-Command frequency (Hz): 2
+[Security]
+Token =                 ; optional, see below
+```
+Delete the `[Arduino]` section to run without hardware.
 
-Uncomment the “Arduino” section(If it is(#)), and set “COM Port” to whatever the Arduino is connected to. I’d suggest starting with “COM3”.
-The baud rate should be correct (9600 symbols/second). But can be increased if you wish
-The command frequency under “Controller” defines how often the PSG program sends the current set of parameters to the Arduino. If it doesn’t send it frequently, it looks the Arduino goes to sleep, returning the turret to the default position. I’ve set it to 2 (twice per second), though perhaps change it to 0.5 (once every two seconds).
-In theory (!), you should now be able to run the program; from a cmd window, simply run:
+Warning: the built-in web page has no login. Leave `Host = localhost`, or only expose it on a network you trust. `Token`
+protects the API for your own clients (they send an `X-Token` header), but the built-in page does not send one, so leave it empty unless you use the API directly.
 
+Target detection settings (brightness thresholds, size and shape filters) are in `PSG 2021/detection.ini`.
+
+## Running
+```
+cd "PSG 2021"
 python3 psg.py
+```
+Then open http://localhost:8080 (or the Pi's address and port).
 
-Then open your browser and type this in the address bar localhost:8080
+Options:
+- `--video <file or folder>` replays recorded video instead of the camera (test clips are in `PSG 2021/Videos`)
+- `--record` saves the video in timestamped files
+- `--picam` uses the Raspberry Pi camera
 
-Operation
-Firstly, it’s ugly. Secondly, functionality is very limited. This is a “minimum viable product”, as I went to test a few assumptions to make sure I’m on the right track.
-Point a web browser at the machine (or from the machine) on which the Arduino is running, at port 8080. You should see something like this:
+## Using it
+**1. Arm.** Use the panel at the top of the page. The status line shows Safe or ARMED. Arm before calibrating, because calibration
+needs the laser on, and the laser will not light while disarmed.
 
-Calibration
-There are two radio buttons, that let you switch between “Active” and “Calibrating”. The only difference is that when calibrating, when you click on the view window (which shows what the webcam sees), it’ll copy the screen coordinates into both the “Centre” and “Northwest” fields, until you’ve clicked [Set] for each one. Walking through the procedure:
-Identify the left most pan that will still hit the screen. Enter a value manually (between 0 and 180 degrees) in the “pan” field, and click [Move]. If all goes well, the turret should obey. Then click [Fire]. The turret should fire, and you can see where it hits the screen. Adjust the “pan” field value until you’re happy it’s as far left as you want to go. Then click [Set Pan (left)].
-Repeat the procedure, tilting the turret to the right. When happy, click [Set Pan (right)].
-Now we adjust the “tilt” value until it’s as far down as required. Click [Set Tilt (down)].
-Finally, adjust “tilt” to its maximum required value, and click [Set Tile (up)].
-Now we calibrate the screen coordinates. Enter 90, 90 into the “pan” and “tilt”, and click [Move]. Once the turret has stopped moving, click [Fire]. Where you see it hit the screen in the view, left-click on that spot. Then click [Set] next to “Centre”.
-Now, move the turret to the top-left (ideally with the same minimum pan and maximum tilt as noted earlier), and again [Fire]. Click where it hits, and click [Set] beside “Northwest”.
-Click the [Calibrate] button, and you’re good to go!
-Active use
-Click on the “Active” radio button. You should now be able to click on the screen, and the pan/tilt values should be calculated so as to hit that point on the screen. Click [Move] to get the turret to get there, and then you can [Fire] at will.
+**2. Calibrate** (once per camera/turret/screen position):
+1. Set the turret limits. Enter a pan or tilt value in the left, right, up and down fields, press **Move** to try it, and use **Copy** to take the turret's current value.
+   Find the furthest left, right, up and down positions that still land on the screen.
+2. Select **Calibrating** and press **Start**. The laser turns on and the turret moves to each of the 25 grid points in turn.
+3. For each point, click on the video where the laser dot appears. The coordinates fill in automatically.
+4. When all 25 are done, press **Save**. This writes `calibration.json`. **Reset** clears it.
+5. Switch back to **Active**.
+
+**3. Safe-to-fire zones.** Tick *Draw safe-to-fire zone* in the safety panel and drag a box on the video. Targets inside a zone are never fired on.
+*Clear zones* removes them all. Zones are saved in `zones.json` and drawn in red on the video.
+
+**4. Fire modes** (switches on the page):
+- *Click to fire*: click a spot on the video and the turret aims and fires there
+- *Tracking* and *Auto-fire*: the turret follows detected targets and fires the laser on them
+- *Always fire*: laser on continuously (arm first)
+- *Scan when idle*: sweeps the turret while there is no target
+- *Shoot colour* and *Safe colour*: only fire at one colour, or never fire at another
+
+**5. Kill.** Press **Kill** at any time to stop everything and disarm.
+
+## Log
+Every arm, disarm, fire start/stop, blocked fire and zone change is recorded. View it at `/log`, or download it with the
+*Export log* link (`/log?format=csv`). Blocked fires show why (`disarmed`, `safe-to-fire zone`, `off_screen_block`).
+Detailed debug output goes to `psg.log`.
+
+## API (for your own tools)
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/arm` `{"armed": true}` | Arm or disarm |
+| POST | `/kill` | Emergency stop |
+| GET | `/safety_status` | Armed state, firing state, zones |
+| GET / POST / DELETE | `/zones` | List, add (`{"x","y","w","h"}`) or clear zones |
+| DELETE | `/zones/<id>` | Remove one zone |
+| GET | `/log` | Event log (`?format=csv` for CSV) |
+| POST | `/move`, `/fire`, `/aim`, `/controls` | Turret control (as used by the web page) |
+| GET | `/calibration`, `/turret_position`, `/video` | Calibration data, turret position, MJPEG video |
+
+## Troubleshooting
+- **Laser does not light:** check it is armed, the Arduino port in `psg.ini` is correct, and the Arduino has the new sketch. The log will show `fire_blocked` if the system refused.
+- **Auto-fire does nothing:** it needs a saved calibration, a target inside the calibrated area and outside every zone, and the system armed.
+- **Nothing detected:** adjust `detection.ini`, check the lighting, and try the replay clips with `--video`.
+- **Crashes at start on Linux with `No module named 'picamera'`:** see step 4 of the install.
+- **Port in use:** another copy is still running, or change `Port` in `psg.ini`.
+
+## Repository layout
+- `PSG 2021/` - the application, Arduino sketch, web page and test videos
+- `tests/` - unit tests for the zone handler (`pip install pytest`, then `python -m pytest tests`)
+- `archive/` - earlier prototypes, kept for reference
+- `MASTER_FEATURES_LIST.md` - the longer-term feature plan
